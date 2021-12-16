@@ -229,7 +229,7 @@ class DataContainer:
             start = idx.start
             if start is None:
                 start=0
-            idx = np.arange(start, max(idx.stop, len(self)), idx.step)
+            idx = np.arange(start, min(idx.stop, len(self)), idx.step)
 
         data = {}
         if self.addID:

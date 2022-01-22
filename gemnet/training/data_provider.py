@@ -22,6 +22,11 @@ class DataProvider:
             If True shuffle the samples after each epoch.
         sample_with_replacement: bool
             Sample data from the dataset with replacement.
+        split: str/dict
+            Overwrites settings of 'ntrain', 'nval', 'random_split' and 'sample_with_replacement'.
+            If of type dict the dictionary is assumed to contain the index split of the subsets. 
+            If split is of type str then load the index split from the .npz-file.
+            Dict and split file are assumed to have keys 'train', 'val', 'test'. 
     """
 
     def __init__(
@@ -34,42 +39,83 @@ class DataProvider:
         random_split: bool = False,
         shuffle: bool = True,
         sample_with_replacement: bool = False,
+        split=None,
     ):
         self.data_container = data_container
         self._ndata = len(data_container)
-        self.nsamples = {
-            "train": ntrain,
-            "val": nval,
-            "test": len(data_container) - ntrain - nval,
-        }
         self.batch_size = batch_size
         self.random_split = random_split
         self.shuffle = shuffle
+        self.sample_with_replacement = sample_with_replacement
 
         # Random state parameter, such that random operations are reproducible if wanted
         self._random_state = np.random.RandomState(seed=seed)
 
-        all_idx = np.arange(len(self.data_container))
-        if random_split:
-            # Shuffle indices
-            all_idx = self._random_state.permutation(all_idx)
-
-        if sample_with_replacement:
-            # Sample with replacement so as to train an ensemble of Dimenets
-            all_idx = self._random_state.choice(all_idx, self._ndata, replace=True)
-
-        # Store indices of training, validation and test data
-        self.idx = {
-            "train": all_idx[0:ntrain],
-            "val": all_idx[ntrain : ntrain + nval],
-            "test": all_idx[ntrain + nval :],
-        }
+        if split is None:
+            self.nsamples, self.idx = self._random_split_data(ntrain, nval)
+        else:
+            self.nsamples, self.idx = self._manual_split_data(split)
 
         # Index for retrieving batches
         self.idx_in_epoch = {"train": 0, "val": 0, "test": 0}
 
         self.dtypes = self.data_container.get_dtypes()
         self.shapes = self.data_container.get_shapes()
+
+    def _manual_split_data(self, split):
+
+        if isinstance(split, (dict,str)):
+            if isinstance(split, str):
+                # split is the path to the file containing the indices
+                assert split.endswith(".npz") , "'split' has to be a .npz file if 'split' is of type str"
+                split = np.load(split)
+
+            keys = ["train", "val", "test"]
+            for key in keys:
+                assert key in split.keys(), f"{key} is not in {[k for k in split.keys()]}"
+
+            idx = {key: np.array(split[key]) for key in keys}
+            nsamples = {key: len(idx[key]) for key in keys}
+
+            return nsamples, idx
+
+        else:
+            raise TypeError("'split' has to be either of type str or dict if not None.")
+
+    def _random_split_data(self, ntrain, nval):
+
+        nsamples = {
+            "train": ntrain,
+            "val": nval,
+            "test": self._ndata - ntrain - nval,
+        }
+
+        all_idx = np.arange(self._ndata)
+        if self.random_split:
+            # Shuffle indices
+            all_idx = self._random_state.permutation(all_idx)
+
+        if self.sample_with_replacement:
+            # Sample with replacement so as to train an ensemble of Dimenets
+            all_idx = self._random_state.choice(all_idx, self._ndata, replace=True)
+
+        # Store indices of training, validation and test data
+        idx = {
+            "train": all_idx[0:ntrain],
+            "val": all_idx[ntrain : ntrain + nval],
+            "test": all_idx[ntrain + nval :],
+        }
+
+        return nsamples, idx
+
+    def save_split(self, path):
+        """
+        Save the split of the samples to path.
+        Data has keys 'train', 'val', 'test'.
+        """
+        assert isinstance(path, str)
+        assert path.endswith(".npz"), "'path' has to end with .npz"
+        np.savez(path, **self.idx)
 
     def shuffle_train(self):
         """Shuffle the training data"""

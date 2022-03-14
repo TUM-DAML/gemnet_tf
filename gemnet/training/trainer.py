@@ -311,9 +311,9 @@ class Trainer:
         """
         return tf.reduce_mean(tf.abs(targets - mean_pred))
 
-    def get_rmse(self, targets, mean_pred):
+    def get_l2mae(self, targets, mean_pred):
         """
-        Root Mean Squared Error
+        Mean Error of L2 norm
         """
         return tf.reduce_mean(tf.norm(targets - mean_pred, ord=2, axis=1))
 
@@ -363,7 +363,7 @@ class Trainer:
                 if self.loss == "mae":
                     force_metric = self.get_mae(targets["F"], mean_forces)
                 else:
-                    force_metric = self.get_rmse(targets["F"], mean_forces)
+                    force_metric = self.get_l2mae(targets["F"], mean_forces)
                 loss = energy_mae * (1 - self.rho_force) + self.rho_force * force_metric
 
         gradients = tape.gradient(loss, self.model.trainable_weights)
@@ -372,12 +372,12 @@ class Trainer:
         if self.mve:
             energy_mae = self.get_mae(targets["E"], mean_energy)
             force_mae = self.get_mae(targets["F"], mean_forces)
-            force_rmse = self.get_rmse(targets["F"], mean_forces)
+            force_rmse = self.get_l2mae(targets["F"], mean_forces)
 
         else:
             if self.loss == "mae":
                 force_mae = force_metric
-                force_rmse = self.get_rmse(targets["F"], mean_forces)
+                force_rmse = self.get_l2mae(targets["F"], mean_forces)
             else:
                 force_mae = self.get_mae(targets["F"], mean_forces)
                 force_rmse = force_metric
@@ -424,7 +424,7 @@ class Trainer:
 
         energy_mae = self.get_mae(targets["E"], mean_energy)
         force_mae = self.get_mae(targets["F"], mean_forces)
-        force_rmse = self.get_rmse(targets["F"], mean_forces)
+        force_rmse = self.get_l2mae(targets["F"], mean_forces)
 
         if self.mve:
             energy_nll = self.get_nll(targets["E"], mean_energy, var_energy)

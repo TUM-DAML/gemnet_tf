@@ -5,7 +5,6 @@ tqdm
 ase
 nglview
 numba
-python==3.8
 jupyterlab
 tensorflow>=2.2
 tensorflow_addons>=0.11
